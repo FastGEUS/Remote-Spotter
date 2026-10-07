@@ -1,0 +1,36 @@
+/* Generated from docs/remote/design-tokens.json. */
+:root {
+  --color-background: #101112;
+  --color-panel: #191A1C;
+  --color-panel-raised: #232529;
+  --color-plot: #141517;
+  --color-border: #34373D;
+  --color-text: #ECECEE;
+  --color-text-secondary: #A3A6AD;
+  --color-text-muted: #91959C;
+  --color-accent: #C46A73;
+  --color-action: #93404A;
+  --color-success: #99AA93;
+  --color-warning: #D7B660;
+  --color-info: #8BA2BA;
+  --color-error: #C46A73;
+  --color-hypercar: #CDD0D5;
+  --color-gt: #9399A3;
+  --color-sector1: #70757D;
+  --color-sector2: #959BA3;
+  --color-sector3: #C2C7CE;
+  --color-throttle: #CDD0D5;
+  --color-brake: #C46A73;
+  --color-clutch: #9399A3;
+  --color-steering: #A3A6AD;
+  --color-action-hover: #A64A55;
+  --accent: var(--color-accent);
+  --accent-button: var(--color-action);
+  --accent-rgb: 196,106,115;
+  --green: var(--color-success);
+  --hypercar: var(--color-hypercar);
+  --gt: var(--color-gt);
+  --muted: var(--color-text-muted);
+  --line: var(--color-border);
+  --panel: var(--color-panel);
+}

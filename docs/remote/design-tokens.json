@@ -1,0 +1,65 @@
+{
+  "name": "Pitwall graphite",
+  "mode": "dark",
+  "brandReference": "#FF003C",
+  "primitives": {
+    "canvas": "#101112",
+    "surface": "#191A1C",
+    "raised": "#232529",
+    "inset": "#141517",
+    "border": "#34373D",
+    "text": "#ECECEE",
+    "secondary": "#A3A6AD",
+    "muted": "#91959C",
+    "accent": "#C46A73",
+    "action": "#93404A",
+    "success": "#99AA93",
+    "warning": "#D7B660",
+    "info": "#8BA2BA",
+    "silver": "#CDD0D5",
+    "steel": "#9399A3",
+    "sectorDark": "#70757D",
+    "sectorMid": "#959BA3",
+    "sectorLight": "#C2C7CE",
+    "actionHover": "#A64A55"
+  },
+  "roles": {
+    "background": "canvas",
+    "panel": "surface",
+    "panelRaised": "raised",
+    "plot": "inset",
+    "border": "border",
+    "text": "text",
+    "textSecondary": "secondary",
+    "textMuted": "muted",
+    "accent": "accent",
+    "action": "action",
+    "success": "success",
+    "warning": "warning",
+    "info": "info",
+    "error": "accent",
+    "hypercar": "silver",
+    "gt": "steel",
+    "sector1": "sectorDark",
+    "sector2": "sectorMid",
+    "sector3": "sectorLight",
+    "throttle": "silver",
+    "brake": "accent",
+    "clutch": "steel",
+    "steering": "secondary",
+    "actionHover": "actionHover"
+  },
+  "traceDashes": {
+    "throttle": [],
+    "brake": [],
+    "clutch": [
+      6,
+      3
+    ],
+    "steering": [
+      2,
+      3
+    ]
+  },
+  "strategy": "Neutral surfaces and data; muted red actions; colours reserved for explicit race flags and warnings."
+}

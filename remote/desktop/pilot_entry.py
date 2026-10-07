@@ -1,0 +1,3 @@
+from remote.desktop.bootstrap import main
+if __name__ == '__main__':
+    raise SystemExit(main('pilot'))

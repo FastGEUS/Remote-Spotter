@@ -1,0 +1,18 @@
+{
+  "repository": "https://github.com/TinyPedal/TinyPedal",
+  "tag": "v2.50.0",
+  "commit": "b6ef05a695686cd18e0b807cd8933fd91e813ad5",
+  "submodules": [
+    "3968c15fc5a127065da2fa0655c9bb0a48ec1b4e pyLMUSharedMemory (3968c15)",
+    " 76f28d4a0f1440ab3fbb7a526ea6d0135b66cba4 pyRfactor2SharedMemory (remotes/origin/PitMenu-104-g76f28d4)",
+    " 6431c9c66ac253f1eef4d73444a727d7b852829f pyRfactor2SharedMemory/hpp2py (6431c9c)"
+  ],
+  "widgets": 76,
+  "iracing_sdk": {
+    "package": "pyirsdk",
+    "version": "1.3.7",
+    "repository": "https://github.com/kutu/pyirsdk",
+    "license": "MIT",
+    "transport": "read-only SDK selected channels + raw session sections; calculated on VPS"
+  }
+}

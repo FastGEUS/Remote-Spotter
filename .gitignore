@@ -1,0 +1,65 @@
+# ignore list
+
+/dist/
+__pycache__/
+
+# User data folder
+/brandlogo/
+/deltabest/
+/settings/
+/trackmap/
+/pacenotes/
+/tracknotes/
+/carsetups/
+
+# pipenv stuff
+Pipfile
+Pipfile.lock
+
+# pylint stuff
+pylintrc
+
+# local config file
+*.json
+*.csv
+*.fuel
+
+# random file
+test*.py
+*.7z
+*.zip
+*.log
+*.db
+
+# Remote extension source manifests and tests (upstream ignores JSON/CSV/test*).
+!/remote/upstream-lock.json
+!/remote/tests/test_*.py
+!/docs/remote/widget-parity.csv
+/remote/.venv/
+/.venv/
+/remote/local-config.json
+/relay/spotter-relay
+/.gui-pilot/
+/.gui-viewer/
+/build/
+!/remote/tests/test_desktop.py
+
+# Remote Spotter public distribution: user secrets and generated builds
+/remote/desktop/presets/
+/keys/
+/.ssh/
+**/lmu_spotter
+**/spotter_pilot
+**/spotter_viewer
+**/credentials.env
+**/pair-private.json
+*.pem
+*.key
+*.pfx
+*.p12
+*.pub
+.env
+.env.*
+!/docs/remote/design-tokens.json
+!/docs/remote/brand-palette.json
+!/docs/remote/ui-theme.json
