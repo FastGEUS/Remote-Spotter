@@ -43,6 +43,34 @@ Current versions: Windows clients **0.6.7**, server **0.4.7**. The server suppor
 one driver–spotter pair / one room. A service for multiple independent teams,
 user accounts, and a complete catalog of track maps have not been implemented.
 
+## Windows Defender on first launch
+
+**On first launch and during automatic SSH connection setup, Windows Defender
+may detect the application or a helper component as a Trojan and block or
+quarantine it.** Such detections have been observed during testing; the cause
+of an individual detection still needs to be checked.
+
+The source code is available in this repository for inspection and building
+the application yourself. Public source code alone does not guarantee that
+a particular EXE is safe or matches the source.
+
+If a notification appears:
+
+1. Open **Windows Security → Virus & threat protection → Protection history**
+   and check the detection name and affected file path.
+2. If you have verified the build's origin and are confident that the detection
+   is a false positive specifically affecting Remote Spotter, select
+   **Actions → Allow on device** for that detection to permit use of the file.
+3. If the file has already been quarantined, choose **Restore** only with the
+   same confidence. Defender may detect it again, requiring you to confirm
+   the permission in Protection history.
+
+If you are unsure, leave the file quarantined and
+[submit it to Microsoft for analysis](https://www.microsoft.com/en-us/wdsi/filesubmission).
+See Microsoft's
+[Protection history documentation](https://support.microsoft.com/en-us/windows/security/windows-security/protection-history-in-the-windows-security-app)
+for details.
+
 ## What you need to set up yourself
 
 1. Prepare both participants' computers and install the required Windows components.
