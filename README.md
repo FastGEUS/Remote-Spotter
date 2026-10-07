@@ -1,5 +1,7 @@
 # Remote Spotter
 
+**Язык / Language:** **Русский** | [English](README_EN.md)
+
 **Публичная бета · исходники для самостоятельного развёртывания**
 
 **Удалённый пит-волл для iRacing и Le Mans Ultimate · by Svet**
