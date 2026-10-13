@@ -27,6 +27,9 @@ computer. The application does not transmit video or replace Discord.
 
 - Minimal driver window: connection, game status, and spotter presence.
 - Spotter dashboard with a track map, standings, flags, fuel, and car condition.
+- Standings show up to five cars ahead and five behind the driver by overall position; the map receives the full available roster.
+- Compact panels without space reserved for removed notes; explanations are available as tooltips.
+- Automatic SDK recovery after closing the iRacing simulator and loading another session.
 - Sector data and comparisons where supported by the data source.
 - Reconnection, diagnostics, and automatic preparation of SSH private key permissions on Windows.
 - Driver and spotter applications can run simultaneously on the same PC.
@@ -39,9 +42,33 @@ approximately, and a proximity indicator is used instead of an exact opponent
 radar. iRacing sector times are estimates; local yellow flags are not mapped
 to individual sectors.
 
-Current versions: Windows clients **0.6.7**, server **0.4.7**. The server supports
+Current versions: Windows clients **0.6.11**, server **0.4.12**. The server supports
 one driver–spotter pair / one room. A service for multiple independent teams,
 user accounts, and a complete catalog of track maps have not been implemented.
+
+## Recent changes and limitations
+
+This repository now includes client changes from 0.6.8–0.6.10 and server
+changes from 0.4.8–0.4.11. Clients 0.6.11 / server 0.4.12 also revise Russian
+labels, status messages and documentation. This is a source update: it does
+not deploy to a VPS and does not provide prebuilt Windows EXEs.
+
+iRacing capture selects 129 SDK variable names and four SessionInfo sections.
+The client requests snapshots at 20 Hz. IBT reading and Web Data API access
+are not implemented. Tyre carcass temperatures and tread remaining are
+displayed as pit measurements; continuous surface temperature is not shown.
+The main tyre panel averages three tread zones; 100% means a new tyre.
+
+Connection status and game telemetry status are separate. Data age begins
+when the server receives a frame; it is not an end-to-end latency measurement.
+Both clients can run on one PC, and automated checks use demo data or synthetic
+SDK memory. Windows builds and live sessions still need separate validation.
+
+- [Testing and single-developer scenarios](docs/remote/TESTING.md).
+- [Architecture, status guide and development plan (Russian)](docs/remote/DEVELOPMENT_RU.md).
+- [iRacing sources and per-channel limitations](docs/remote/IRACING_DATA_SOURCES.md).
+- [Server build and installation (Russian)](deploy/remote/README.md).
+- [Client 0.6.11 notes](docs/remote/RELEASE_DESKTOP_0.6.11_RU.md) and [server 0.4.12 notes](docs/remote/RELEASE_UI_0.4.12_RU.md).
 
 ## Windows Defender on first launch
 

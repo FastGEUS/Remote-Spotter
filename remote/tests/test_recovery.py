@@ -8,6 +8,17 @@ from remote.recovery import CaptureState, AckWindow
 
 
 class CaptureRecoveryTests(unittest.TestCase):
+    def test_one_missing_copy_late_in_a_session_does_not_remap(self):
+        state=CaptureState(False,0);reader=Mock()
+        sample=demo_frame(100);sample['sourceSession']='same'
+        state.update(sample,100,reader)
+        session=state.session_id
+        self.assertIsNone(state.update(None,100.1,reader))
+        reader.close.assert_not_called()
+        sample=demo_frame(100.2);sample['sourceSession']='same'
+        state.update(sample,100.2,reader)
+        self.assertEqual(state.session_id,session)
+
     def test_inconsistent_copy_does_not_change_session_or_rewind_time(self):
         state=CaptureState(False,0)
         state.update(demo_frame(10),0)

@@ -1,6 +1,11 @@
 const test=require('node:test');const assert=require('node:assert/strict');
 const {describe}=require('../../relay/web/status.js');
 const fresh={sourceConnected:true,sourceAgeMs:50,ingestAgeMs:20,state:{status:'live'}};
+test('a rejected sample is distinguished from a disconnected pilot',()=>{
+  const label=describe({...fresh,computeError:'invalid SDK sample'},true);
+  assert.match(label.text,/Пилот подключён/);assert.match(label.text,/пропущен/);
+  assert.equal(label.good,false);
+});
 test('normal garage and waiting are not network failures',()=>{
  for(const status of ['garage','waitingForGame','paused']){
   const label=describe({...fresh,state:{status}},true);

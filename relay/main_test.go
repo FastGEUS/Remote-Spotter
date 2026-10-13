@@ -99,6 +99,68 @@ for line in sys.stdin:
 	awaitSeq(9)
 }
 
+func TestRejectedIRacingSampleKeepsSamePilotConnection(t *testing.T) {
+	root, python := fakeWorkerRoot(t, `import json,sys
+for line in sys.stdin:
+    f=json.loads(line)
+    if f['seq']==1:
+        print(json.dumps({'type':'error','error':'invalid optional SDK sample'}),flush=True)
+    else:
+        print(json.dumps({'type':'presentation','seq':f['seq'],'mode':'iracing','status':'live'}),flush=True)
+`)
+	s := &Server{pilotToken: strings.Repeat("p", 32), root: root, python: python}
+	server := httptest.NewServer(http.HandlerFunc(s.pilot))
+	defer server.Close()
+	conn, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(server.URL, "http"), http.Header{
+		"Authorization": {"Bearer " + s.pilotToken}, "X-Spotter-Ack": {"1"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	send := func(seq int) {
+		t.Helper()
+		if err := conn.WriteJSON(map[string]any{"seq": seq, "mode": "iracing"}); err != nil {
+			t.Fatal(err)
+		}
+		_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+		var ack struct {
+			Type string
+			Seq  int
+		}
+		if err := conn.ReadJSON(&ack); err != nil {
+			t.Fatal(err)
+		}
+		if ack.Type != "ack" || ack.Seq != seq {
+			t.Fatalf("unexpected ACK: %+v", ack)
+		}
+	}
+	await := func(check func() bool) {
+		t.Helper()
+		deadline := time.Now().Add(3 * time.Second)
+		for time.Now().Before(deadline) {
+			s.mu.Lock()
+			ok := check()
+			s.mu.Unlock()
+			if ok {
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		t.Fatal("calculation did not reach expected state")
+	}
+	send(0)
+	await(func() bool { return len(s.state) > 0 })
+	send(1)
+	await(func() bool { return s.rejectedFrames == 1 && s.connected && s.lastIngestError != "" })
+	send(2)
+	await(func() bool {
+		var state struct{ Seq int }
+		_ = json.Unmarshal(s.state, &state)
+		return state.Seq == 2 && s.connected && s.lastIngestError == ""
+	})
+}
+
 func TestTimedOutWorkerRestartsWithoutClosingSource(t *testing.T) {
 	root, python := fakeWorkerRoot(t, `import json,sys,time,pathlib
 marker=pathlib.Path('first-worker')

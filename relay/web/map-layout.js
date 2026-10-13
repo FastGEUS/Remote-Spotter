@@ -45,6 +45,22 @@
     const c=Math.cos(camera.angle),s=Math.sin(camera.angle),[x,z]=point;
     return [(x*c-z*s-camera.x)*camera.scale+width/2,(x*s+z*c-camera.z)*camera.scale+height/2];
   }
-  const api={fit,project};
+  function recordingInfo(map={}){
+    if(map.status==='recorded')return {label:'КРУГ ЗАПИСАН',note:'Карта загружена из кеша VPS или записана по полному кругу. Позиции соперников проецируются по доле круга.'};
+    const reasons={
+      'waiting-for-driving':'Выезжайте на трассу: запись начнётся при движении пилота.',
+      'missing-map-channels':'SDK пока не передаёт положение на круге, скорость или координаты / курс.',
+      'pit-or-tow':'Запись приостановлена в питах или во время эвакуации. Продолжите движение по трассе.',
+      'sample-gap':'Длительный пропуск данных: запись начнётся заново при продолжении движения.',
+      'coordinate-jump':'Позиция резко изменилась: ожидается новый непрерывный участок.',
+      'coordinate-source-changed':'Источник координат изменился: начинается новый участок.',
+      'progress-jump':'Возврат в боксы или движение назад: ожидается новый непрерывный участок.',
+      'lap-geometry-incomplete':'Круг не дал цельной геометрии: идёт запись следующего круга.'
+    };
+    const coverage=Number.isFinite(map.coveragePct)?Math.max(0,Math.min(100,map.coveragePct)):0;
+    return {label:`ЗАПИСЬ ТРАССЫ · ${Math.round(coverage)}%`,note:reasons[map.blockedReason]||
+      'Показан записанный участок. Для полной карты пройдите круг через старт/финиш без питов и эвакуации; карта сохранится на VPS.'};
+  }
+  const api={fit,project,recordingInfo};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.SpotterMap=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

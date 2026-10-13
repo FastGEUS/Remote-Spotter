@@ -26,18 +26,6 @@ window.SpotterCockpit=(()=>{
   function drawRadar(s){
     const draw=surface('radar');if(!draw)return;
     const range=Number($('radar-range').value),{ctx,w,h}=draw,cx=w/2,cy=h/2,r=Math.min(w,h)/2-24,scale=r/range;
-    if(s.mode==='iracing'){
-      SpotterRadar.drawCar(ctx,cx,cy,0,6,T.text);
-      const n=s.overlays?.proximity?.leftRight,left=[2,4,5].includes(n),right=[3,4,6].includes(n);
-      ctx.textAlign='center';ctx.font='12px system-ui';
-      for(const [x,active,label] of [[cx-65,left,'СЛЕВА'],[cx+65,right,'СПРАВА']]){
-        ctx.fillStyle=active?T.warning:T.border;ctx.fillRect(x-20,cy-23,40,46);
-        ctx.fillStyle=active?T.warning:T.textSecondary;ctx.fillText(label,x,cy-34);
-      }
-      ctx.fillStyle=T.textSecondary;ctx.font='11px system-ui';
-      ctx.fillText(({1:'Слева / справа свободно',2:'Машина слева',3:'Машина справа',4:'Машины с обеих сторон',5:'Две машины слева',6:'Две машины справа'})[n]||'Нет данных о соседстве',cx,cy+55);
-      ctx.font='9px system-ui';ctx.fillText('Индикатор SDK · расстояния не передаются',cx,h-12);return;
-    }
     ctx.strokeStyle=T.border;ctx.lineWidth=1;
     for(const fraction of [.25,.5,1]){ctx.beginPath();ctx.arc(cx,cy,r*fraction,0,2*Math.PI);ctx.stroke();}
     ctx.beginPath();ctx.moveTo(cx-r,cy);ctx.lineTo(cx+r,cy);ctx.moveTo(cx,cy-r);ctx.lineTo(cx,cy+r);ctx.stroke();
@@ -78,9 +66,20 @@ window.SpotterCockpit=(()=>{
     ctx.setLineDash([]);ctx.fillStyle=T.textMuted;ctx.fillText(`−${duration.toFixed(1)} с`,left,h-4);ctx.textAlign='right';ctx.fillText('сейчас',right,h-4);
   }
   function render(s,live){
+    const iracing=s.mode==='iracing',display=$('iracing-proximity'),proximity=s.overlays?.proximity;
+    display.hidden=!iracing;$('radar').hidden=iracing;
+    if(iracing){
+      const n=live?proximity?.leftRight:null,known=[1,2,3,4,5,6].includes(n);
+      for(const [id,occupied,double] of [['proximity-left',[2,4,5].includes(n),n===5],['proximity-right',[3,4,6].includes(n),n===6]]){
+        const side=$(id);side.classList.toggle('occupied',occupied);side.querySelector('strong').textContent=!known?'НЕТ ДАННЫХ':occupied?(double?'2 МАШИНЫ':'МАШИНА'):'СВОБОДНО';
+      }
+      set('proximity-ahead',live&&finite(proximity?.aheadM)&&proximity.aheadM>=0?`${fmt(proximity.aheadM,1)} м`:'—');
+      set('proximity-behind',live&&finite(proximity?.behindM)&&proximity.behindM>=0?`${fmt(proximity.behindM,1)} м`:'—');
+      display.title='Машины слева и справа от пилота';
+    }
     document.querySelector('.radar-range').hidden=s.mode==='iracing';
-    document.querySelector('.radar-panel h2').textContent=s.mode==='iracing'?'Темп и соседство':'Темп и радар';
-    $('radar').setAttribute('aria-label',s.mode==='iracing'?'Индикатор соседства слева и справа из SDK':'Радар ближайших машин');
+    document.querySelector('.radar-panel h2').textContent=s.mode==='iracing'?'Темп и трафик':'Темп и радар';
+    $('radar').setAttribute('aria-label',s.mode==='iracing'?'Машины слева и справа от пилота':'Радар ближайших машин');
     $('dashboard').classList.toggle('dashboard-stale',!live);
     set('track-clock',clock(api(s,'session.track_time')));
     const remaining=api(s,'session.remaining'),maximum=s.session?.maxLaps;
@@ -99,7 +98,7 @@ window.SpotterCockpit=(()=>{
     const d=delta?.deltaSession,best=delta?.lapTimeSession;
     set('lap-delta',finite(d)&&finite(best)&&best>0&&best<99999?`Δ сессии ${d>0?'+':''}${d.toFixed(3)}`:'Дельта: —');
     $('lap-delta').className='badge '+(finite(best)&&best>0&&finite(d)?d<=0?'split-good':'split-slow':'');
-    set('lap-valid',!live?'Данные устарели':s.pilot?.lapValid==null?'Валидность: —':s.pilot.lapValid?'Валидный круг':'Невалидный круг');
+    set('lap-valid',!live?'Данные устарели':s.pilot?.lapValid==null?'Статус круга: —':s.pilot.lapValid?'Круг засчитан':'Круг не засчитан');
     const nearby=$('nearby');nearby.replaceChildren();
     const cars=s.cars.filter(c=>c.id!==s.pilot?.id&&finite(c.relativeGap)).sort((a,b)=>Math.abs(a.relativeGap)-Math.abs(b.relativeGap)).slice(0,3).sort((a,b)=>b.relativeGap-a.relativeGap);
     for(const c of cars){const row=document.createElement('div'),pos=document.createElement('small'),name=document.createElement('span'),gap=document.createElement('strong');row.className='nearby-row';pos.textContent=`P${c.place}`;name.textContent=c.driver;gap.textContent=c.inPit?'PIT':`${c.relativeGap>0?'↑':'↓'} ${Math.abs(c.relativeGap).toFixed(2)} с`;row.append(pos,name,gap);nearby.append(row);}

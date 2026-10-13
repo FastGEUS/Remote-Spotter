@@ -95,3 +95,15 @@ button:disabled{background:var(--color-panel-raised);color:var(--color-text-mute
 .flag-screen[data-flag="white"]{background:#eee8dd;color:#17191c;border-color:#eee8dd}
 .flag-screen[data-flag="black"]{background:#191b1f;color:#f2f3f5;border-color:#f2f3f5}
 .flag-screen[data-flag="repair"]{background:#392621;color:#efc17c;border-color:#c18c56}
+
+/* Full roster uses page scrolling rather than a clipped inner table. */
+#dashboard>.positions{margin-top:14px;max-height:none;min-height:0;overflow:visible}
+#dashboard>.positions .table-wrap{flex:none;max-height:none;overflow:visible}
+#dashboard>.positions table{table-layout:auto;width:100%}
+#dashboard>.positions td{white-space:normal;overflow:visible;text-overflow:clip}
+#dashboard>.positions th:nth-child(1){width:55px}
+#dashboard>.positions th:nth-child(2){width:115px}
+#dashboard>.positions th:nth-child(4){width:75px}
+#dashboard>.positions th:nth-child(5){width:115px}
+#map-empty{text-align:center;padding:24px;box-sizing:border-box}
+@media(min-width:1025px){.pitwall{grid-template-columns:minmax(450px,1.65fr) minmax(300px,1fr);grid-template-areas:"map right" "timing right" "driving driving";grid-template-rows:530px minmax(340px,auto) auto}.map-panel{grid-row:1}}

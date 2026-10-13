@@ -42,6 +42,8 @@ test*.py
 /.gui-pilot/
 /.gui-viewer/
 /build/
+/node_modules/
+/docs/remote/preview*.png
 !/remote/tests/test_desktop.py
 
 # Remote Spotter public distribution: user secrets and generated builds

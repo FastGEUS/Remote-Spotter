@@ -1,10 +1,18 @@
 # Changes from TinyPedal v2.50.0
 
-Remote Spotter additions by Svet, 2026-10-06: capture adapters for LMU/iRacing,
-VPS computation and relay, web dashboard, Windows pilot/viewer GUI, SSH
-transport, lifecycle and key permission handling, desktop branding.
+Remote Spotter additions by Svet: LMU/iRacing capture, VPS calculations and
+relay, web dashboard, Windows driver/viewer GUI, SSH transport, lifecycle,
+key permission handling and desktop branding.
+
+## 2026-10-13 — clients 0.6.11 / server 0.4.12
+
+- Public sources synchronized with client 0.6.10 and server 0.4.11.
+- Included iRacing session recovery, improved telemetry handling, compact
+  standings around the driver and panels sized to their contents.
+- Revised Russian UI labels and connection messages.
+- Updated Russian/English README, iRacing source mapping, test instructions,
+  development priorities and release notes; added GitHub unit-test workflow.
+- Preserved public first-run configuration without paired access profiles.
 
 TinyPedal sources and third-party copyright notices are retained.
-This snapshot replaces the original root README with a Remote Spotter overview;
-the original is UPSTREAM_README.md. No personal access credentials are included.
-Public startup uses the first-run configuration form.
+The original TinyPedal README remains in UPSTREAM_README.md.

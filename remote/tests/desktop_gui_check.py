@@ -58,9 +58,12 @@ def main(binary,destination):
             assert 'spotter_session' not in javascript('document.cookie')
             collector_env={**os.environ,'SPOTTER_PILOT_TOKEN':pilot_token}
             collector=subprocess.Popen([sys.executable,'-m','remote.collector','--demo','--allow-insecure-local','--url',f'ws://127.0.0.1:{port}/ws/pilot'],cwd=ROOT,env=collector_env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-            until(lambda:javascript("document.getElementById('standings').children.length") == 12)
+            until(lambda:javascript("document.getElementById('standings').children.length") == 6)
+            assert javascript("document.body.classList.contains('embedded')")
             until(lambda:javascript("document.querySelectorAll('[data-overlay]').length") == 76)
-            until(lambda:javascript("document.getElementById('connection').textContent")=='В эфире')
+            until(lambda:javascript("document.getElementById('connection').textContent")=='Данные поступают')
+            layout=json.loads(javascript("JSON.stringify([...document.querySelectorAll('.pitwall section')].map(n=>({title:n.querySelector('h2')?.textContent,client:n.clientHeight,scroll:n.scrollHeight})))"))
+            assert all(n['scroll']<=n['client']+2 for n in layout),layout
             viewer.show_state(State('viewer',phase='online',game='live',data_fresh=True,partner_connected=True,partner_name='Legacy partner').presentation())
             for _ in range(50):app.processEvents();time.sleep(.02)
             app.processEvents();viewer.grab().save(str(directory/'viewer-online.png'))

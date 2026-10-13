@@ -4,6 +4,7 @@ const {spawn}=require('child_process');
 const crypto=require('crypto');
 const path=require('path');
 const fs=require('fs');
+const os=require('os');
 const root=path.resolve(__dirname,'../..');
 const token=crypto.randomBytes(32).toString('hex');
 const viewToken=crypto.randomBytes(32).toString('hex');
@@ -11,7 +12,7 @@ const port=18081;
 const env={...process.env,SPOTTER_ROOT:root,SPOTTER_PYTHON:process.env.SPOTTER_PYTHON||'python3',SPOTTER_ADDR:`127.0.0.1:${port}`,SPOTTER_PILOT_TOKEN:token,SPOTTER_VIEW_TOKEN:viewToken};
 async function main(){
   const server=spawn(process.argv[2],[],{env,stdio:'ignore'});
-  let collector,browser,page;
+  let collector,browser,page,qtBrowser,qtDownloads;
   try{
     for(let i=0;i<100;i++){try{if((await fetch(`http://127.0.0.1:${port}/healthz`)).ok)break;}catch{}await new Promise(r=>setTimeout(r,50));}
     // Fixed synthetic game steps keep UI history checks independent of host load.
@@ -25,18 +26,35 @@ collector.demo_frame=lambda wall:original(next(steps)*.25)
 collector.configure_logging()
 asyncio.run(collector.run(SimpleNamespace(url='ws://127.0.0.1:${port}/ws/pilot',demo=True,allow_insecure_local=True,hz=20)))`;
     collector=spawn(env.SPOTTER_PYTHON,['-c',replay],{cwd:root,env,stdio:'ignore'});
-    browser=await chromium.launch({headless:true,executablePath:process.env.SPOTTER_CHROMIUM||undefined});
-    page=await browser.newPage({viewport:{width:1920,height:1080}});
+    if(process.env.SPOTTER_QT_BROWSER){
+      qtDownloads=fs.mkdtempSync(path.join(os.tmpdir(),'spotter-qt-downloads-'));
+      qtBrowser=spawn(env.SPOTTER_PYTHON,[path.join(root,'remote/tests/qt_browser_fixture.py'),'18082'],{cwd:root,env:{...env,SPOTTER_QT_DOWNLOAD_DIR:qtDownloads},stdio:'ignore'});
+      for(let i=0;i<100;i++){try{if((await fetch('http://127.0.0.1:18082/json/version')).ok)break;}catch{}await new Promise(r=>setTimeout(r,50));}
+      browser=await chromium.connectOverCDP('http://127.0.0.1:18082',{noDefaults:true});
+      page=browser.contexts()[0].pages()[0];await page.setViewportSize({width:1920,height:1080});
+    }else{
+      browser=await chromium.launch({headless:true,executablePath:process.env.SPOTTER_CHROMIUM||undefined});
+      page=await browser.newPage({viewport:{width:1920,height:1080}});
+    }
     const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('Browser error:',e.message);});
     await page.goto(`http://127.0.0.1:${port}`);
     await page.locator('#token').fill(viewToken);await page.locator('#login-form button').click();
     await page.waitForFunction(()=>document.querySelector('#mode').textContent.includes('ДЕМО'));
-    await page.waitForFunction(()=>document.querySelector('#standings').children.length===12);
+    await page.waitForFunction(()=>document.querySelector('#standings').children.length===6);
+    await page.evaluate(()=>{
+      const cars=Array.from({length:64},(_,i)=>({id:i,place:i+1}));
+      const positions=id=>carsAroundPilot(cars,id).map(c=>c.place);
+      for(const [id,expected] of [[0,[1,2,3,4,5,6]],[31,[27,28,29,30,31,32,33,34,35,36,37]],[63,[59,60,61,62,63,64]]]){
+        if(JSON.stringify(positions(id))!==JSON.stringify(expected))throw Error('Centred standings boundaries are wrong');
+      }
+      cars.reverse();if(positions(31)[5]!==32)throw Error('Standings depend on capture array order');
+      if(carsAroundPilot(cars,999).length)throw Error('Missing pilot shows unrelated rows');
+    });
     await page.waitForFunction(()=>document.querySelector('#speed').textContent==='225');
-    await page.waitForFunction(()=>document.querySelector('.condition').textContent==='Состояние 96%');
+    await page.waitForFunction(()=>document.querySelector('.condition').textContent==='Остаток 96%');
     await page.waitForFunction(()=>Number.parseFloat(document.querySelector('#energy').textContent)>90);
     await page.waitForFunction(()=>Number.parseFloat(document.querySelector('#stint-minutes').textContent)>0,null,{timeout:45000});
-    await page.waitForFunction(()=>document.querySelector('#fuel-note').textContent.includes('TinyPedal'));
+    await page.waitForFunction(()=>document.querySelector('#consumption').title.includes('TinyPedal'));
     await page.waitForFunction(()=>document.querySelectorAll('[data-overlay]').length===76);
     await page.waitForFunction(()=>document.querySelector('#overlay-health').textContent.includes('12/12'));
     await page.waitForFunction(()=>document.querySelector('#sector-history').children.length>=1);
@@ -44,7 +62,7 @@ asyncio.run(collector.run(SimpleNamespace(url='ws://127.0.0.1:${port}/ws/pilot',
     const mapSize=await page.locator('#map').boundingBox();
     if(mapSize.width<650||mapSize.height<300)throw Error('Main map is too small');
     const radarSize=await page.locator('#radar').boundingBox();
-    if(radarSize.width<290||radarSize.height<220)throw Error('Radar must occupy the full instrument width');
+    if(radarSize.width<290||radarSize.height<164)throw Error('Radar must occupy the full instrument width');
     await page.evaluate(()=>{
       const sample=structuredClone(latest.state);
       sample.overlays.race=[
@@ -74,7 +92,13 @@ asyncio.run(collector.run(SimpleNamespace(url='ws://127.0.0.1:${port}/ws/pilot',
     if(!await page.locator('#advanced-panels').evaluate(n=>!n.open))throw Error('Advanced panels should start collapsed');
     if(!await page.locator('#flag-title').innerText())throw Error('Flag display missing');
     const flagBox=await page.locator('.flag-panel').boundingBox();
-    if(flagBox.width<300||flagBox.height<120||flagBox.x+flagBox.width>mapSize.x)throw Error('Flag screen must be a separate visible panel beside the map');
+    if(flagBox.width<300||flagBox.height<120||flagBox.x>=mapSize.x||flagBox.y>mapSize.y)throw Error('Flag screen must occupy the top-left block beside the map');
+    await page.evaluate(()=>{
+      const panels=[...document.querySelectorAll('.pitwall section')];
+      if(panels.some(n=>n.getBoundingClientRect().bottom>innerHeight||n.scrollHeight>n.clientHeight+2))throw Error('Important panels do not fit the desktop screen');
+      const table=document.querySelector('.positions .table-wrap');
+      if(table.scrollHeight>table.clientHeight+2)throw Error('Centred standings require scrolling');
+    });
     // Verify the separate board uses the same calibration as the map, and
     // never displays unverified local channels as a clear/green sector.
     await page.evaluate(()=>{
@@ -108,14 +132,21 @@ asyncio.run(collector.run(SimpleNamespace(url='ws://127.0.0.1:${port}/ws/pilot',
       if(document.querySelector('#lap-best').textContent==='1666:39.000')throw Error('Invalid time sentinel displayed');
       SpotterCockpit.render(latest.state,isLive(latest));
     });
-    const downloadPromise=page.waitForEvent('download');await page.locator('#sector-export').click();
-    const download=await downloadPromise;if(download.suggestedFilename()!=='sector-laps.csv')throw Error('Missing CSV export');
+    if(qtBrowser){
+      await page.locator('#sector-export').click();
+      const csv=path.join(qtDownloads,'sector-laps.csv');
+      for(let i=0;i<100&&!fs.existsSync(csv);i++)await new Promise(r=>setTimeout(r,50));
+      if(!fs.existsSync(csv)||fs.readFileSync(csv,'utf8').split('\n').length<2)throw Error('Missing native Qt CSV export');
+    }else{
+      const downloadPromise=page.waitForEvent('download');await page.locator('#sector-export').click();
+      const download=await downloadPromise;if(download.suggestedFilename()!=='sector-laps.csv')throw Error('Missing CSV export');
+    }
     await page.locator('#map-expand').click();
-    await page.waitForFunction(()=>document.fullscreenElement?.id==='map-panel');
+    await page.waitForFunction(()=>document.fullscreenElement?.id==='map-panel'&&document.querySelector('#flag-screen').parentElement.classList.contains('map-wrap'));
     const fullMap=await page.locator('#map').boundingBox();if(fullMap.width<1800||fullMap.height<700)throw Error('Map fullscreen did not grow');
     if(!await page.locator('#flag-screen').evaluate(n=>n.parentElement.classList.contains('map-wrap')))throw Error('Flag screen disappears in fullscreen map');
     await page.screenshot({path:path.join(root,'docs/remote/preview-fullscreen.png'),fullPage:false});
-    await page.locator('#map-expand').click();await page.waitForFunction(()=>!document.fullscreenElement);
+    await page.locator('#map-expand').click();await page.waitForFunction(()=>!document.fullscreenElement&&document.querySelector('#flag-screen').parentElement.classList.contains('flag-panel'));
     if(!await page.locator('#flag-screen').evaluate(n=>n.parentElement.classList.contains('flag-panel')))throw Error('Flag screen did not return to its panel');
     await page.locator('#advanced-panels > summary').click();
     await page.waitForFunction(()=>document.querySelector('[data-overlay="tyre_wear"] .panel-values').textContent.includes('96%'));
@@ -137,7 +168,7 @@ asyncio.run(collector.run(SimpleNamespace(url='ws://127.0.0.1:${port}/ws/pilot',
     const tyreOverflow=await page.locator('.tyres-panel').evaluate(n=>n.scrollHeight>n.clientHeight+1);
     if(tyreOverflow)throw Error('Main tyre card overflows its allocated height');
     const radar1440=await page.locator('#radar').boundingBox();
-    if(radar1440.width<270||radar1440.height<220)throw Error('Radar shrinks on a 1440px desktop');
+    if(radar1440.width<270||radar1440.height<164)throw Error('Radar shrinks on a 1440px desktop');
     await page.locator('#advanced-panels > summary').click();
     await page.locator('.overlay-controls').scrollIntoViewIfNeeded();
     await page.screenshot({path:path.join(dir,'preview-overlays.png'),fullPage:false});
@@ -157,17 +188,17 @@ asyncio.run(collector.run(SimpleNamespace(url='ws://127.0.0.1:${port}/ws/pilot',
     await page.evaluate(()=>viewConnection.socket.close());
     await page.waitForFunction(g=>viewConnection.generation>g&&viewConnection.state==='open',next,{timeout:10000});
     collector.kill();
-    await page.waitForFunction(()=>document.querySelector('#connection').textContent.includes('устарели'));
+    await page.waitForFunction(()=>latest?.sourceConnected===false&&document.querySelector('#connection').classList.contains('bad'));
     await page.waitForFunction(()=>document.querySelector('#flag-screen').dataset.flag==='stale');
     await page.waitForFunction(()=>[...document.querySelectorAll('.sector-indicator')].every(n=>n.classList.contains('flag-stale')));
     if(!await page.locator('#dashboard').evaluate(n=>n.classList.contains('dashboard-stale')))throw Error('Main instruments missing stale marker'); 
     if(errors.length)throw Error(errors.join('\n'));
-    console.log('UI PASS: login, demo labels, 12 cars, server result, desktop/mobile, disconnected status, no page errors');
+    console.log('UI PASS: login, demo labels, centred standings, all main panels on desktop, fullscreen, CSV, overlays, desktop/mobile, reconnect, no page errors');
   }catch(error){
     if(page)console.error(await page.evaluate(()=>({connection:document.querySelector("#connection")?.textContent,mode:document.querySelector("#mode")?.textContent,loginError:document.querySelector("#login-error")?.textContent,overlayHealth:document.querySelector('#overlay-health')?.textContent,overlayNotice:document.querySelector('#overlay-notice')?.textContent,moduleErrors:typeof latest!=="undefined"?latest?.state?.overlays?.moduleErrors:null,sourceAge:typeof latest!=="undefined"?latest?.sourceAgeMs:null,transport:typeof viewConnection!=="undefined"?viewConnection.state:"not-loaded",seq:typeof latest!=="undefined"?latest?.state?.seq:null,gameTime:typeof latest!=="undefined"?latest?.state?.gameTime:null})).catch(()=>({diagnostic:"page-unavailable"})));
     throw error;
   }finally{
-    if(browser)await browser.close();if(collector)collector.kill();server.kill();
+    if(browser)await browser.close();if(qtBrowser)qtBrowser.kill();if(qtDownloads)fs.rmSync(qtDownloads,{recursive:true,force:true});if(collector)collector.kill();server.kill();
   }
 }
 main().catch(e=>{console.error(e.stack);process.exitCode=1;});

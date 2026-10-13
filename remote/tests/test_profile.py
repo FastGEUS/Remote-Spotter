@@ -28,7 +28,7 @@ class ProfileTests(unittest.TestCase):
             self.assertNotIn(str(value),str(caught.exception))
 
     def test_profile_cannot_silently_send_key_over_public_plaintext(self):
-        for url in ('ws://127.0.0.1:8080/ws/pilot','ws://127.0.0.1.evil:8080/ws/pilot',
+        for url in ('ws://192.0.2.1:8080/ws/pilot','ws://127.0.0.1.evil:8080/ws/pilot',
                     'wss://example.com/ws/view','wss://example.com/ws/pilot?token=x'):
             with self.assertRaises(ValueError):validate_url(url)
         self.assertEqual(validate_url('wss://example.com/ws/pilot'),('wss://example.com/ws/pilot',False))

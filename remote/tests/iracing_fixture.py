@@ -40,8 +40,9 @@ def frame(t=0,seq=0):
 
 
 class BinaryFixture:
-    def __init__(self,path):
-        self.path=Path(path);example=values(0);self.spec=[];offset=0
+    def __init__(self,path,*,values_fn=values,sections_fn=sections):
+        self.values_fn=values_fn
+        self.path=Path(path);example=values_fn(0);self.spec=[];offset=0
         for key,value in example.items():
             sample=value[0] if isinstance(value,list) else value
             code='?' if isinstance(sample,bool) else 'i' if isinstance(sample,int) else 'd'
@@ -49,7 +50,7 @@ class BinaryFixture:
             self.spec.append((key,kind,code,count,offset));offset+=struct.calcsize('<'+code*count)
         self.var_start=112;self.data_start=112+144*len(self.spec);self.data_size=offset
         self.yaml_start=self.data_start+self.data_size
-        metadata=('---\n'+'\n'.join(value+'\n' for value in sections().values())+'\n\0').encode()
+        metadata=('---\n'+'\n'.join(value+'\n' for value in sections_fn().values())+'\n\0').encode()
         self.image=bytearray(self.yaml_start+len(metadata))
         struct.pack_into('<10i',self.image,0,1,1,60,1,len(metadata),self.yaml_start,len(self.spec),self.var_start,1,self.data_size)
         struct.pack_into('<4i',self.image,48,1,self.data_start,1,0)
@@ -57,7 +58,7 @@ class BinaryFixture:
             struct.pack_into('<iii?3x32s64s32s',self.image,self.var_start+i*144,kind,offset,count,False,key.encode(),b'Fixture',b'')
         self.image[self.yaml_start:]=metadata;self.write(0,1)
     def write(self,t,tick):
-        data=values(t)
+        data=self.values_fn(t)
         for key,kind,code,count,offset in self.spec:
             value=data[key];items=value if isinstance(value,list) else [value]
             struct.pack_into('<'+code*count,self.image,self.data_start+offset,*items)

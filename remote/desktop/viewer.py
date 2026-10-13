@@ -33,19 +33,18 @@ class ViewerWindow(ConnectionWindow):
         super().__init__(profile,**kwargs)
         self.setWindowTitle('Remote Spotter — споттер');self.resize(1440,960);self.setMinimumSize(900,600)
         self.loaded_origin='';self.pending_cookie=None;self.pending_origin=None
-        layout=QHBoxLayout(self);layout.setContentsMargins(0,0,0,0);layout.setSpacing(0)
-        sidebar=QWidget();sidebar.setObjectName('sidebar');sidebar.setFixedWidth(180)
-        nav=QVBoxLayout(sidebar);nav.setContentsMargins(12,25,12,16);nav.setSpacing(4)
-        brand=QLabel('Remote\nSpotter');brand.setStyleSheet('font-size:19px;font-weight:600;padding:0 11px 10px;');nav.addWidget(brand)
-        role_label=secondary('СПОТТЕР');role_label.setStyleSheet('color:#B5BBC4;font-size:11px;padding:0 11px 25px;');nav.addWidget(role_label)
-        self.nav_buttons=[]
-        for name,target in [('Сеанс','top'),('Сектора','sectors'),('Все оверлеи','overlays')]:
-            button=QPushButton(name);button.setProperty('nav',True);button.setCheckable(True);button.clicked.connect(lambda checked=False,t=target:self.navigate(t));nav.addWidget(button);self.nav_buttons.append((target,button))
+        layout=QVBoxLayout(self);layout.setContentsMargins(0,0,0,0);layout.setSpacing(0)
+        toolbar=QWidget();toolbar.setObjectName('viewerToolbar')
+        nav=QHBoxLayout(toolbar);nav.setContentsMargins(14,8,14,8);nav.setSpacing(6)
+        brand=QLabel('Remote Spotter');brand.setStyleSheet('font-size:15px;font-weight:600;');nav.addWidget(brand)
+        credit=secondary(CREDIT);nav.addWidget(credit)
         nav.addStretch()
-        credit=secondary(CREDIT);credit.setStyleSheet('color:#B5BBC4;font-size:11px;padding:0 11px 12px;');nav.addWidget(credit)
+        self.nav_buttons=[]
+        for name,target in [('Сеанс','top'),('Позиции','standings'),('Сектора','sectors'),('Оверлеи','overlays')]:
+            button=QPushButton(name);button.setProperty('nav',True);button.setCheckable(True);button.clicked.connect(lambda checked=False,t=target:self.navigate(t));nav.addWidget(button);self.nav_buttons.append((target,button))
         diagnostics=QPushButton('Диагностика');diagnostics.setProperty('nav',True);diagnostics.clicked.connect(self.diagnostics);nav.addWidget(diagnostics)
         self.retry=QPushButton('Подключиться');self.retry.clicked.connect(self.connect_session);nav.addWidget(self.retry)
-        layout.addWidget(sidebar)
+        layout.addWidget(toolbar)
         content=QWidget();column=QVBoxLayout(content);column.setContentsMargins(0,0,0,0);column.setSpacing(0)
         self.banner=QLabel('Подключаемся к серверу…');self.banner.setObjectName('viewerBanner');self.banner.setWordWrap(True);column.addWidget(self.banner)
         self.stack=QStackedWidget();column.addWidget(self.stack)
@@ -106,8 +105,8 @@ class ViewerWindow(ConnectionWindow):
             def ready(found):
                 if not found or self.closing:return
                 self.loaded_origin=self.pending_origin or self.loaded_origin
+                self.page.runJavaScript("document.body.classList.add('embedded');if(typeof connect==='function')connect();")
                 self.stack.setCurrentWidget(self.web)
-                self.page.runJavaScript("if(typeof connect==='function')connect();")
             self.page.runJavaScript("!!document.getElementById('dashboard')",ready)
         else:
             self.loaded_origin='';self.stack.setCurrentIndex(0)
@@ -134,6 +133,7 @@ class ViewerWindow(ConnectionWindow):
         for name,button in self.nav_buttons:button.setChecked(name==target)
         scripts={
             'top':"window.scrollTo({top:0,behavior:'smooth'});",
+            'standings':"document.querySelector('.positions')?.scrollIntoView({behavior:'smooth'});",
             'sectors':"document.querySelector('.timing-panel')?.scrollIntoView({behavior:'smooth'});",
             'overlays':"const advanced=document.getElementById('advanced-panels');if(advanced){advanced.open=true;advanced.scrollIntoView({behavior:'smooth'});}"}
         if self.loaded_origin:self.page.runJavaScript(scripts[target])

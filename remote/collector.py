@@ -6,6 +6,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import math
 import os
+import struct
 import time
 import uuid
 from pathlib import Path
@@ -102,7 +103,11 @@ async def run(args, *, token=None, on_event=None):
                             if ack:
                                 await ack.ready()
                             tick = time.monotonic()
-                            raw = demo_frame(tick - start) if args.demo else reader.read()
+                            try:
+                                raw = demo_frame(tick - start) if args.demo else reader.read()
+                            except (OSError,ValueError,KeyError,TypeError,struct.error) as exc:
+                                logging.warning('Game capture temporarily unavailable (%s); relay connection kept',type(exc).__name__)
+                                raw = None
                             sample = capture.update(raw, tick, reader)
                             if sample is not None:
                                 mode='demo' if args.demo else sample.pop('sourceMode',getattr(reader,'game',game))
@@ -146,16 +151,12 @@ async def run(args, *, token=None, on_event=None):
                 logging.warning("Capture/network unavailable (%s); retry in %ss", type(exc).__name__, backoff)
                 if isinstance(exc,(ConnectionRefusedError,TimeoutError)):
                     logging.warning("Проверьте, что SSH-туннель открыт и сервер spotter запущен.")
-                if reader:
-                    reader.close()
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 15)
             except Exception as exc:
                 event("transport", connected=False)
                 # Includes WebSocket closure; never dump authentication headers.
                 logging.warning("Connection ended (%s); retry in %ss", type(exc).__name__, backoff)
-                if reader:
-                    reader.close()
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 15)
     finally:

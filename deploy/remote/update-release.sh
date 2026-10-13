@@ -45,5 +45,5 @@ systemctl start spotter.service
 curl --fail --silent --show-error --retry 10 --retry-delay 1 --retry-connrefused http://127.0.0.1:8080/healthz
 trap - ERR
 echo
-echo 'v0.4.7 installed: iRacing SDK server adapter plus LMU support. Use client 0.6.0 for iRacing. Refresh browser Ctrl+F5.'
+echo 'Server 0.4.12 installed. Clients 0.6.9 or newer are compatible. Restart the viewer or refresh with Ctrl+F5.'
 systemctl status spotter.service --no-pager

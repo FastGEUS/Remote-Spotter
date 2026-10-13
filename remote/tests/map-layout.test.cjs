@@ -1,7 +1,13 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {fit,project}=require('../../relay/web/map-layout.js');
+const {fit,project,recordingInfo}=require('../../relay/web/map-layout.js');
 const rotate=(p,a)=>[p[0]*Math.cos(a)-p[1]*Math.sin(a),p[0]*Math.sin(a)+p[1]*Math.cos(a)];
+test('iRacing explains missing channels and shows partial recording progress',()=>{
+  assert.match(recordingInfo({coveragePct:37.4}).label,/37%/);
+  assert.match(recordingInfo({blockedReason:'missing-map-channels'}).note,/SDK/);
+  assert.match(recordingInfo({blockedReason:'waiting-for-driving'}).note,/Выезжайте/);
+  assert.equal(recordingInfo({status:'recorded'}).label,'КРУГ ЗАПИСАН');
+});
 test('a tall angled circuit fits a wide window horizontally without clipping or distortion',()=>{
   const points=[[-100,-1000],[100,-1000],[100,1000],[-100,1000]].map(p=>rotate(p,.3));
   const camera=fit(points,800,300);

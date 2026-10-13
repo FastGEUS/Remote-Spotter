@@ -106,7 +106,7 @@ class Setup(QDialog):
         heading = QLabel('Первое подключение')
         heading.setStyleSheet('font-size:22px;font-weight:600;')
         layout.addWidget(heading)
-        explanation = secondary('Сохраним доступ на этом компьютере. При следующих запусках вводить ключи не потребуется.')
+        explanation = secondary('Настройки подключения сохраняются на этом компьютере. Повторно вводить ключи при запуске не нужно.')
         explanation.setWordWrap(True)
         layout.addWidget(explanation)
         form = QFormLayout()
@@ -160,7 +160,7 @@ class Setup(QDialog):
             save_profile(self.profile)
             self.accept()
         except (ValueError,OSError,RuntimeError):
-            self.problem.setText('Проверьте адрес, приватный SSH-ключ и ключ выбранной роли. Сохранение выполняется средствами Windows.')
+            self.problem.setText('Не удалось сохранить настройки. Проверьте адрес сервера, файл SSH-ключа и ключ доступа для выбранной роли.')
 
 
 class HostScan(Backend):
@@ -293,12 +293,12 @@ class PilotWindow(ConnectionWindow):
         body=QWidget();body_layout=QVBoxLayout(body);body_layout.setContentsMargins(20,18,20,20);body_layout.setSpacing(0)
         status=QHBoxLayout();status.setSpacing(9)
         self.dot=QLabel();self.dot.setFixedSize(18,18);self.dot.setStyleSheet('border-radius:9px;background-color:#B5BBC4;')
-        self.title=QLabel('Вы офлайн');self.title.setStyleSheet('font-size:22px;font-weight:600;')
+        self.title=QLabel('Нет подключения');self.title.setStyleSheet('font-size:22px;font-weight:600;')
         status.addWidget(self.dot);status.addWidget(self.title);status.addStretch();body_layout.addLayout(status);body_layout.addSpacing(17)
         details=QFormLayout();details.setHorizontalSpacing(30);details.setVerticalSpacing(10)
         game_box=QWidget();game_layout=QVBoxLayout(game_box);game_layout.setContentsMargins(0,0,0,0);game_layout.setSpacing(1)
         self.game_label=QLabel({'iracing':'iRacing','lmu':'Le Mans Ultimate'}.get(profile.game,'iRacing / LMU'))
-        game_layout.addWidget(self.game_label);self.game_caption=secondary('Ожидание запуска');self.game_caption.setStyleSheet('color:#B5BBC4;font-size:11px;');game_layout.addWidget(self.game_caption)
+        game_layout.addWidget(self.game_label);self.game_caption=secondary('Ожидание данных игры');self.game_caption.setStyleSheet('color:#B5BBC4;font-size:11px;');game_layout.addWidget(self.game_caption)
         self.partner=QLabel('—');self.partner.setMaximumWidth(218)
         details.addRow(secondary('Игра'),game_box);details.addRow(secondary('Споттер'),self.partner);body_layout.addLayout(details)
         body_layout.addStretch();self.connect_button=QPushButton('Подключиться');self.connect_button.setFixedHeight(37);self.connect_button.setProperty('primary',True)
@@ -348,7 +348,7 @@ def launch(role):
         personalized=False
         try:profile,personalized=load_startup_profile(role,directory)
         except (ValueError,OSError,RuntimeError,KeyError,TypeError):
-            QMessageBox.warning(None,'Remote Spotter','Сохранённый доступ недоступен. Укажите ключи заново на этом компьютере.');profile=None
+            QMessageBox.warning(None,'Remote Spotter','Не удалось прочитать сохранённые настройки подключения. Укажите ключи заново.');profile=None
         if not profile:
             setup=Setup(role)
             if setup.exec()!=QDialog.DialogCode.Accepted:return 0

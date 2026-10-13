@@ -1,6 +1,7 @@
 """Own the SSH lifecycle, existing collector and authenticated VPS status."""
 import asyncio
 import contextlib
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 import urllib.error
@@ -11,8 +12,10 @@ from .key_permissions import prepare_private_key, KeyPermissionError
 
 
 def require_iracing_server(value):
-    if 'iracing' not in (value.get('supportedGames') or []):
-        raise TunnelError('Обновите VPS до 0.4.7 из пакета 0.6.0: этот сервер ещё не поддерживает iRacing.', 'server-version', True)
+    try:version=tuple(int(v) for v in value.get('version','0').split('.'))
+    except (ValueError,AttributeError):version=(0,)
+    if 'iracing' not in (value.get('supportedGames') or []) or version<(0,4,8):
+        raise TunnelError('Для iRacing нужен сервер 0.4.8 или новее. Обновите сервер на VPS.', 'server-version', True)
 
 
 class Session:
@@ -55,6 +58,7 @@ class Session:
     async def serve(self, tunnel):
         collector = None
         cookie = None
+        status_failures = 0
         try:
             if self.profile.role == 'pilot':
                 if not self.demo and self.profile.game!='lmu':
@@ -75,15 +79,25 @@ class Session:
                 try:
                     value, _ = await asyncio.to_thread(http_json, tunnel.origin + '/api/status',
                         token=self.profile.token if self.profile.role == 'pilot' else None, cookie=cookie)
-                except urllib.error.HTTPError as exc:
-                    if exc.code == 401:
+                except (OSError,ValueError) as exc:
+                    if isinstance(exc,urllib.error.HTTPError) and exc.code == 401:
                         if self.profile.role == 'viewer':
                             cookie = await self.login(tunnel)
                             continue
-                        raise TunnelError('VPS отклонил ключ пилота. Нужен ключ именно этой роли.', 'token', True) from None
-                    if exc.code == 404:
-                        raise TunnelError('Обновите VPS до 0.4.7 из пакета 0.6.0: сервер ещё не поддерживает статусы приложения.', 'server-version', True) from None
-                    raise
+                        raise TunnelError('Сервер отклонил ключ доступа пилота. Проверьте, что указан ключ для роли пилота.', 'token', True) from None
+                    if isinstance(exc,urllib.error.HTTPError) and exc.code == 404:
+                        raise TunnelError('Сервер не поддерживает запрос статуса приложения. Обновите сервер на VPS.', 'server-version', True) from None
+                    status_failures += 1
+                    self.state.data_fresh = False
+                    self.state.partner_connected = None
+                    self.publish()
+                    # A failed status poll must not kill a healthy collector
+                    # and its owned SSH tunnel. Persistent failures still retry.
+                    if status_failures >= 5:raise TunnelError('Сервер не отвечает на запросы статуса. Восстанавливаем подключение.') from None
+                    if status_failures == 1:logging.warning('Server status temporarily unavailable; existing tunnel and collector kept')
+                    await asyncio.sleep(1)
+                    continue
+                status_failures = 0
                 self.state.apply_server(value)
                 if self.profile.role == 'pilot' and self.transport_connected:
                     self.state.phase, self.state.reason = 'online', ''
@@ -92,9 +106,9 @@ class Session:
         except urllib.error.HTTPError as exc:
             if exc.code == 401:
                 role='пилота' if self.profile.role=='pilot' else 'споттера'
-                raise TunnelError(f'VPS отклонил ключ {role}. Нужен ключ именно этой роли.', 'token', True) from None
+                raise TunnelError(f'Сервер отклонил ключ доступа {role}. Проверьте ключ выбранной роли.', 'token', True) from None
             if exc.code==404:
-                raise TunnelError('Обновите VPS до 0.4.7 из пакета 0.6.0.', 'server-version', True) from None
+                raise TunnelError('Версия сервера не поддерживает этот запрос. Обновите сервер на VPS.', 'server-version', True) from None
             raise
         finally:
             if collector:

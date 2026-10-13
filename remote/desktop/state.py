@@ -17,10 +17,10 @@ class State:
     game_mode: str = 'auto'
 
     def presentation(self):
-        title = {'offline': 'Вы офлайн', 'connecting': 'Подключаемся…',
-                 'online': 'Вы онлайн', 'reconnecting': 'Восстановление связи',
+        title = {'offline': 'Нет подключения', 'connecting': 'Подключение…',
+                 'online': 'Подключено', 'reconnecting': 'Восстановление связи',
                  'error': 'Нет подключения', 'stopping': 'Отключаемся…'}[self.phase]
-        source = {'waitingForGame': 'Ожидание запуска', 'garage': 'В гараже',
+        source = {'waitingForGame': 'Ожидание данных игры', 'garage': 'В гараже',
                   'paused': 'Пауза / нет обновлений', 'live': 'На трассе'}
         caption = source.get(self.game, 'Ожидание телеметрии')
         if self.phase == 'online' and self.game == 'live' and not self.data_fresh:

@@ -3,7 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch,Mock,AsyncMock
 from remote.desktop.config import Profile,save_profile,load_profile
 from remote.desktop.state import State
 from remote.desktop.tunnel import command,classify_error,Tunnel,TunnelError,prepare_hosts
@@ -73,16 +73,52 @@ class DesktopStateTests(unittest.TestCase):
                 self.assertNotIn('Private legacy name',json.dumps(presentation))
 
     def test_iracing_requires_capable_server_before_capture(self):
-        require_iracing_server({'supportedGames':['lmu','iracing']})
+        require_iracing_server({'version':'0.4.8','supportedGames':['lmu','iracing']})
+        with self.assertRaises(TunnelError):require_iracing_server({'version':'0.4.7','supportedGames':['lmu','iracing']})
         with self.assertRaises(TunnelError) as error:require_iracing_server({'version':'0.4.6'})
         self.assertTrue(error.exception.permanent)
         self.assertEqual(error.exception.code,'server-version')
+
+
+class StatusPollRecoveryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_one_timeout_keeps_pilot_collector_and_tunnel(self):
+        value={'version':'0.4.8','supportedGames':['iracing'], 'sourceConnected':True,
+            'viewersConnected':1,'sourceAgeMs':20,'ingestAgeMs':10,'computeMs':1,
+            'gameStatus':'live','gameMode':'iracing'}
+        calls=[0];restored=asyncio.Event();stopped=asyncio.Event()
+        def http(*args,**kwargs):
+            calls[0]+=1
+            if calls[0]==3:raise TimeoutError('temporary status timeout')
+            return value,None
+        def emit(event):
+            if calls[0]>=4 and event.get('data_fresh'):restored.set()
+        async def collector(args,*,token,on_event):
+            on_event({'kind':'transport','connected':True})
+            try:await asyncio.Event().wait()
+            finally:stopped.set()
+        original_sleep=asyncio.sleep
+        async def fast_sleep(seconds):await original_sleep(0)
+        with tempfile.TemporaryDirectory() as directory:
+            session=Session(Profile('pilot','p'*32,'unused',game='iracing'),directory,emit)
+            tunnel=Mock(origin='http://127.0.0.1:12345')
+            with patch('remote.desktop.session.http_json',http),patch('remote.collector.run',collector),patch('remote.desktop.session.asyncio.sleep',fast_sleep):
+                task=asyncio.create_task(session.serve(tunnel))
+                try:
+                    await asyncio.wait_for(restored.wait(),2)
+                    self.assertFalse(stopped.is_set())
+                    self.assertFalse(task.done())
+                    self.assertTrue(session.transport_connected)
+                    self.assertGreaterEqual(tunnel.check.call_count,3)
+                finally:
+                    task.cancel()
+                    with self.assertRaises(asyncio.CancelledError):await task
+                self.assertTrue(stopped.is_set())
 
     def test_waiting_garage_stale_and_partner_presence_are_separate(self):
         s=State('pilot',phase='online',game='garage',partner_name='Споттер')
         value={'sourceConnected':True,'viewersConnected':0,'sourceAgeMs':40,'ingestAgeMs':10,'computeMs':2,'gameStatus':'garage'}
         s.apply_server(value)
-        self.assertEqual(s.presentation()['title'],'Вы онлайн')
+        self.assertEqual(s.presentation()['title'],'Подключено')
         self.assertEqual(s.presentation()['game_caption'],'В гараже')
         self.assertIn('офлайн',s.presentation()['partner'])
         s.game='live';s.apply_server({**value,'viewersConnected':1,'sourceAgeMs':2000})

@@ -21,7 +21,7 @@ class CaptureState:
         if sample is None:
             if self.missing_since is None:
                 self.missing_since = now
-            if reader and now-self.last_remap >= 5:
+            if reader and now-self.missing_since >= 5 and now-self.last_remap >= 5:
                 reader.close()
                 self.last_remap = now
             # A failed consistency copy isn't a new game session.

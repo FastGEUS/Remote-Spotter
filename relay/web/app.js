@@ -32,14 +32,19 @@ el("login-form").addEventListener("submit",async e=>{
 });
 const wheelNodes=["FL","FR","RL","RR"].map(label=>{
   const box=document.createElement("div");box.className="wheel";
-  const title=document.createElement("strong");title.textContent=label;
+  const title=document.createElement("strong");title.textContent=label;title.title={FL:"Передняя левая",FR:"Передняя правая",RL:"Задняя левая",RR:"Задняя правая"}[label];
   const value=document.createElement("b"),pressure=document.createElement("span"),condition=document.createElement("span"),detail=document.createElement("small"),triple=document.createElement("div"),geometry=document.createElement("small");
-  triple.className="temp-triple";triple.title="Температура протектора: внутренняя / центр / внешняя";
+  triple.className="temp-triple";triple.title="Температура протектора: внутри / центр / снаружи";
   for(let i=0;i<3;i++)triple.append(document.createElement("em"));geometry.className="geometry";
   condition.className="condition";box.append(title,value,triple,pressure,condition,detail,geometry);el("wheels").append(box);
   return {value,pressure,condition,detail,triple,geometry};
 });
 const rows=new Map();
+function carsAroundPilot(cars,pilotId){
+  const ordered=cars.filter(c=>typeof c.place==='number'&&Number.isFinite(c.place)&&c.place>0).slice().sort((a,b)=>a.place-b.place);
+  const ownIndex=ordered.findIndex(c=>c.id===pilotId);
+  return ownIndex<0?[]:ordered.slice(Math.max(0,ownIndex-5),ownIndex+6);
+}
 function render(envelope){
   const s=envelope.state;
   if(!s){if(viewConnection.state==="open"){const label=SpotterStatus.describe(envelope,true,performance.now()-lastMessage);status(label.text,label.good);}return;}
@@ -51,11 +56,11 @@ function render(envelope){
   el("track").textContent=s.session.track||"Ожидание игры";
   el("mode").textContent=s.mode==="demo"?"ДЕМО • синтетические данные":s.mode==='iracing'?"iRacing • SDK":"LMU • телеметрия";
   document.querySelector('.flag-settings').hidden=s.mode==='iracing';
-  document.querySelector('.tire-note').textContent=s.mode==='iracing'?'FL / FR — передние · RL / RR — задние. 100% — новая шина. Каркас: левая / центр / правая. Шины: снимок SDK из питов, не непрерывные измерения.':'FL / FR — передние · RL / RR — задние. 100% — новая шина. Температура протектора: внутренняя / центр / внешняя.';
-  if(s.mode==='iracing')document.querySelector('.legend').textContent='Пилот · соперники · позиции на карте приблизительные';
+  document.querySelector('.tyres-panel h2').title=s.mode==='iracing'?'Температура каркаса — замер в боксах. Давление — замер SDK или холодная настройка гаража.':'Температура протектора: внутри / центр / снаружи.';
+  if(s.mode==='iracing')document.querySelector('.legend').textContent='Пилот · соперники';
   else document.querySelector('.legend').textContent='Пилот · Hypercar · LMGT3';
-  el("quality").textContent=`Возраст на VPS ${Math.max(0,Math.round(envelope.sourceAgeMs))} мс`;
-  el("compute").textContent=`Расчёт на VPS ${fmt(envelope.computeMs,2)} мс`;
+  el("quality").textContent=`Возраст данных ${Math.max(0,Math.round(envelope.sourceAgeMs))} мс`;
+  el("compute").textContent=`Расчёт ${fmt(envelope.computeMs,2)} мс`;
   el("speed").textContent=fmt(s.pilot?.speedKph,0);
   const gear=s.pilot?.gear;el("gear").textContent=gear===0?"N":gear===-1?"R":gear??"—";
   el("rpm").textContent=fmt(s.pilot?.rpm,0)+" об/мин";el("fuel").textContent=fmt(s.pilot?.fuelL);
@@ -64,7 +69,7 @@ function render(envelope){
   el("laps").textContent=fmt(original?fuel?.lapsRemaining:s.fuel.lapsRemaining);
   const consumption=original?fuel?.estimatedConsumption:s.fuel.consumptionLPerLap;
   el("consumption").textContent=consumption?`${fmt(consumption,2)} л/круг`:"Сбор данных";
-  el("fuel-note").textContent=consumption?(original?"Расчёт топлива TinyPedal":"Базовая оценка по полным кругам"):"Расход появится после полного круга без питов и разрывов.";
+  el("consumption").title=consumption?(original?"Расчёт топлива TinyPedal":"Базовая оценка по полным кругам"):"Расход появится после полного круга без питов и разрывов.";
   el("energy").textContent=fmt(energy?.amount,1);
   el("energy-laps").textContent=fmt(energy?.lapsRemaining,1);
   el("energy-consumption").textContent=energy?.estimatedConsumption?`${fmt(energy.estimatedConsumption,2)} %/круг`:"Сбор данных";
@@ -78,31 +83,63 @@ function render(envelope){
     el('energy-consumption').textContent='Не применяется';
   }
   el("map-status").textContent=({demo:"ДЕМО-КАРТА",recording:"ЗАПИСЬ ТРАССЫ",recorded:"КРУГ ЗАПИСАН"})[s.trackmap.status]||"ОЖИДАНИЕ";
-  el("map-note").textContent=s.mode==="demo"?"Синтетическая трасса · демонстрация передачи данных":s.trackmap.sectorGeometry?"S/F — старт/финиш; S1/S2 и S2/S3 — записанные границы секторов. Жёлтая подсветка — подтверждённый локальный флаг.":"Границы секторов появятся после записи полного круга TinyPedal или импорта карты с отсечками.";
-  if(s.mode==='iracing')el('map-note').textContent='iRacing: приблизительная карта записывается на VPS по полному кругу без питов и разрывов. Машины проецируются по доле круга; локальный жёлтый не привязан к сектору.';
+  el("map-status").title=s.mode==="demo"?"Синтетическая трасса · демонстрация передачи данных":s.trackmap.sectorGeometry?"S/F — старт/финиш; S1/S2 и S2/S3 — записанные границы секторов. Жёлтая подсветка — подтверждённый локальный флаг.":"Границы секторов появятся после записи полного круга TinyPedal или импорта карты с отсечками.";
+  if(s.mode==='iracing'){
+    const info=SpotterMap.recordingInfo(s.trackmap);
+    el('map-status').textContent=info.label;
+    el('map-status').title=`iRacing · приблизительная карта. ${info.note} Локальный жёлтый не привязан к сектору.`;
+    el('map-empty').textContent=info.note;
+  }else el('map-empty').textContent='Ожидание записи трассы';
   el("map-empty").hidden=s.cars.some(c=>Number.isFinite(c.x)&&Number.isFinite(c.z))||s.trackmap.points.length>1;
   wheelNodes.forEach((node,i)=>{
-    const w=s.pilot?.wheels?.[i];node.value.textContent=`${fmt(w?.temperatureC)}°`;
-    node.pressure.textContent=`${fmt(w?.pressureKpa,0)} кПа`;
-    node.condition.textContent=`Состояние ${fmt(typeof w?.wear==="number"?w.wear*100:null,0)}%`;
+    const w=s.pilot?.wheels?.[i]||s.tyres?.[i];node.value.textContent=`${fmt(w?.temperatureC)}°`;
+    const temperatureSource=s.mode==='iracing'?(w?.temperatureC!=null?(w.temperatureCached?'Каркас · сохранённый замер в боксах':'Каркас · замер в боксах'):'Температура появится после пит-стопа'):'Температура протектора';
+    node.value.title=temperatureSource;
+    node.triple.title=`${temperatureSource}: внутри / центр / снаружи`;
+    node.pressure.textContent=`${s.mode==='iracing'&&w?.pressureSource?.includes('cold pressure')?'Хол. ':''}${fmt(w?.pressureKpa,0)} кПа`;
+    node.pressure.title=w?.pressureSource||'Давление шин';
+    node.condition.textContent=`Остаток ${fmt(typeof w?.wear==="number"?w.wear*100:null,0)}%`;
+    node.condition.title='Остаток протектора, среднее по трём зонам. 100% — новая шина.';
+    node.detail.hidden=s.mode==='iracing';
     node.detail.textContent=`Тормоз ${fmt(w?.brakeC,0)} °C`;
     const temperatures=s.overlays?.values?.[s.mode==='iracing'?'api.tyre.carcass_temperature_ico':'api.tyre.surface_temperature_ico']?.value;
     for(let j=0;j<3;j++)node.triple.children[j].textContent=`${fmt(temperatures?.[i*3+j],0)}°`;
     const m=s.overlays?.modules?.wheels;
-    node.geometry.textContent=`Развал ${fmt(m?.camberAngle?.[i],1)}° · Toe ${fmt(m?.toeAngle?.[i],2)}°`;
+    node.geometry.textContent=`Развал ${fmt(m?.camberAngle?.[i],1)}° · Схождение ${fmt(m?.toeAngle?.[i],2)}°`;
   });
-  const table=el("standings"),present=new Set();el("car-count").textContent=`${s.cars.length} машин`;
-  s.cars.forEach((c,index)=>{
+  const table=el("standings"),present=new Set(),selectedCars=carsAroundPilot(s.cars,s.pilot?.id),ownIndex=selectedCars.findIndex(c=>c.id===s.pilot?.id);
+  el("car-count").textContent=ownIndex<0?'Ожидание':`↑ ${ownIndex} · ↓ ${selectedCars.length-ownIndex-1}`;
+  el("car-count").title=`Показано ${selectedCars.length} из ${s.cars.length} машин · до пяти выше и ниже по общей позиции`;
+  table.querySelector('.empty-row')?.remove();
+  const roster=table.closest('.positions'),columns=1;
+  roster.dataset.columns=String(columns);
+  roster.style.setProperty('--roster-columns',columns);
+  roster.style.setProperty('--roster-rows',Math.max(1,selectedCars.length));
+  const head=table.closest('table').querySelector('thead');
+  if(head.children.length!==columns){while(head.children.length>1)head.lastElementChild.remove();if(columns===2)head.append(head.firstElementChild.cloneNode(true));}
+  const sessionType=s.overlays?.values?.['api.session.session_type']?.value;
+  const bestLapColumn=s.mode==='iracing'&&sessionType&&sessionType!=='Race';
+  head.querySelectorAll('th:last-child').forEach(th=>{th.textContent=bestLapColumn?'Лучший':'Интервал';th.title=bestLapColumn?'Лучший круг':'Интервал до лидера';});
+  selectedCars.forEach((c,index)=>{
     present.add(c.id);let row=rows.get(c.id);
     if(!row){row=document.createElement("tr");for(let i=0;i<5;i++)row.append(document.createElement("td"));rows.set(c.id,row);}
     row.className=c.id===s.pilot?.id?"own":"";
-    [c.place,"",c.driver,c.laps,c.inPit?"PIT":c.place===1?"ЛИДЕР":typeof c.gapBehindLeader==='number'&&Number.isFinite(c.gapBehindLeader)&&c.gapBehindLeader>=0&&c.gapBehindLeader<99999?`+${fmt(c.gapBehindLeader,1)}`:"—"].forEach((v,i)=>{if(i!==1)row.children[i].textContent=v;});
+    row.dataset.carId=String(c.id);
+    const best=c.bestLapTime;
+    const result=bestLapColumn?(typeof best==='number'&&Number.isFinite(best)&&best>0?`${Math.floor(best/60)}:${(best%60).toFixed(3).padStart(6,'0')}`:'—'):
+      c.inPit?'PIT':c.place===1?'ЛИДЕР':typeof c.gapBehindLeader==='number'&&Number.isFinite(c.gapBehindLeader)&&c.gapBehindLeader>=0&&c.gapBehindLeader<99999?`+${fmt(c.gapBehindLeader,1)}`:'—';
+    [c.place||'—',"",c.driver,c.laps,result].forEach((v,i)=>{if(i!==1)row.children[i].textContent=v;});
     let tag=row.children[1].firstChild;if(!tag){tag=document.createElement("span");row.children[1].append(tag);}
-    tag.className='class-tag'+(c.class==='Hypercar'?'':' gt');tag.textContent=`${c.class==='Hypercar'?'HYP':c.class==='LMGT3'?'GT3':c.class} ${c.classPlace}`;
+    tag.className='class-tag'+(c.class==='Hypercar'?'':' gt');tag.textContent=`${c.class==='Hypercar'?'HYP':c.class==='LMGT3'?'GT3':c.class} ${c.classPlace||'—'}`;
     row.children[2].title=c.driver;
     if(table.children[index]!==row)table.insertBefore(row,table.children[index]||null);
   });
   for(const [id,row] of rows)if(!present.has(id)){row.remove();rows.delete(id);}
+  if(!selectedCars.length){const row=document.createElement('tr'),cell=document.createElement('td');row.className='empty-row';cell.colSpan=5;cell.textContent='Ожидание позиции пилота';row.append(cell);table.append(row);}
+  document.querySelector('.strategy-panel h2').textContent=s.mode==='iracing'?'Топливо и стинт':'Топливо и энергия';
+  document.querySelectorAll('.strategy-panel .resource-row')[1].hidden=s.mode==='iracing';
+  document.querySelector('.tyres-panel h2').textContent=s.mode==='iracing'?'Шины · замеры в боксах':'Шины и тормоза';
+  document.querySelectorAll('.tyres-panel .geometry').forEach(node=>{node.hidden=s.mode==='iracing';});
 }
 const canvas=el("map"),ctx=canvas.getContext("2d");
 function draw(now){

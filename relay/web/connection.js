@@ -12,7 +12,7 @@
     stop(){++this.generation;this.clearTimer(this.retry);this.clearTimer(this.guard);this.retry=this.guard=null;const old=this.socket;this.socket=null;if(old)old.close();}
     async start(){
       this.stop();const generation=this.generation;
-      this.status('connecting','Подключаю страницу споттера…');
+      this.status('connecting','Подключение к серверу…');
       let auth;
       const abort=new AbortController();const timer=this.setTimer(()=>abort.abort(),5000);
       try{auth=await this.fetch(`${this.origin}/api/session`,{method:'GET',cache:'no-store',signal:abort.signal});}

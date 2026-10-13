@@ -82,6 +82,11 @@ func (w *Worker) calculate(raw []byte) ([]byte, error) {
 
 var errComputeTimeout = errors.New("compute timeout")
 
+// A rejected telemetry sample is not a broken WebSocket or a dead worker.
+type ingestError struct{ reason string }
+
+func (e *ingestError) Error() string { return "ingest rejected: " + e.reason }
+
 func (w *Worker) calculateContext(ctx context.Context, raw []byte) ([]byte, error) {
 	type result struct {
 		data []byte
@@ -115,7 +120,11 @@ func (w *Worker) calculateContext(ctx context.Context, raw []byte) ([]byte, erro
 			if len(reason) > 256 {
 				reason = reason[:256]
 			}
-			done <- result{err: fmt.Errorf("ingest rejected: %s", reason)}
+			if response.Type == "error" {
+				done <- result{err: &ingestError{reason: reason}}
+			} else {
+				done <- result{err: errors.New("unexpected compute response")}
+			}
 			return
 		}
 		done <- result{data: data}
@@ -157,6 +166,7 @@ func offerLatest(queue chan capturedFrame, frame capturedFrame) {
 }
 
 func (s *Server) calculateFrames(ctx context.Context, queue <-chan capturedFrame, worker *Worker) error {
+	lastRejectedLog := time.Time{}
 	defer func() {
 		if worker != nil {
 			worker.close()
@@ -169,6 +179,18 @@ func (s *Server) calculateFrames(ctx context.Context, queue <-chan capturedFrame
 		case frame := <-queue:
 			started := time.Now()
 			result, err := worker.calculateContext(ctx, frame.raw)
+			var rejected *ingestError
+			if errors.As(err, &rejected) {
+				s.mu.Lock()
+				s.rejectedFrames++
+				s.lastIngestError = rejected.reason
+				s.mu.Unlock()
+				if time.Since(lastRejectedLog) >= 5*time.Second {
+					log.Printf("telemetry sample skipped; pilot remains connected: %s", rejected.reason)
+					lastRejectedLog = time.Now()
+				}
+				continue
+			}
 			if errors.Is(err, errComputeTimeout) {
 				log.Print("compute timeout: restarting calculation worker; pilot transport remains connected")
 				worker.close()
@@ -186,6 +208,7 @@ func (s *Server) calculateFrames(ctx context.Context, queue <-chan capturedFrame
 			s.state = result
 			s.received = frame.received
 			s.computeMs = float64(time.Since(started).Microseconds()) / 1000
+			s.lastIngestError = ""
 			s.mu.Unlock()
 		}
 	}
@@ -200,6 +223,8 @@ type Server struct {
 	connected                             bool
 	viewers                               int
 	computeMs                             float64
+	rejectedFrames                        uint64
+	lastIngestError                       string
 }
 
 func equal(a, b string) bool { return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1 }
@@ -401,7 +426,9 @@ func (s *Server) envelope() []byte {
 		SourceConnected bool            `json:"sourceConnected"`
 		ComputeMs       float64         `json:"computeMs"`
 		State           json.RawMessage `json:"state"`
-	}{"update", time.Now().UnixMilli(), age, ingestAge, s.connected, s.computeMs, s.state})
+		ComputeError    string          `json:"computeError,omitempty"`
+		RejectedFrames  uint64          `json:"rejectedFrames"`
+	}{"update", time.Now().UnixMilli(), age, ingestAge, s.connected, s.computeMs, s.state, s.lastIngestError, s.rejectedFrames})
 	return data
 }
 
@@ -443,7 +470,10 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 		SourceAgeMs      int64    `json:"sourceAgeMs"`
 		IngestAgeMs      int64    `json:"ingestAgeMs"`
 		ComputeMs        float64  `json:"computeMs"`
-	}{"0.4.7", []string{"lmu", "iracing"}, s.connected, s.viewers, state.Status, state.Mode, sourceAge, ingestAge, s.computeMs})
+		IRacingLayout    string   `json:"iracingLayout"`
+		ComputeError     string   `json:"computeError,omitempty"`
+		RejectedFrames   uint64   `json:"rejectedFrames"`
+	}{"0.4.12", []string{"lmu", "iracing"}, s.connected, s.viewers, state.Status, state.Mode, sourceAge, ingestAge, s.computeMs, "irsdk-selected-v1", s.lastIngestError, s.rejectedFrames})
 }
 
 func (s *Server) view(w http.ResponseWriter, r *http.Request) {
