@@ -25,10 +25,11 @@
 ## Автоматические проверки
 
 Команды выполняются из корня репозитория. Для unit-тестов Python нужны
-зависимости сервера и pyirsdk; Qt для них не требуется.
+зависимости сервера и pyirsdk; для проверки SSH также нужен asyncssh.
+Qt для unit-тестов не требуется.
 
 ```bash
-python -m pip install -r remote/requirements.txt pyirsdk==1.3.7
+python -m pip install -r remote/requirements.txt pyirsdk==1.3.7 asyncssh==2.24.1
 python -m unittest discover -s remote/tests -v
 node --test remote/tests/*.test.cjs
 cd relay
